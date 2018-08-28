@@ -17,8 +17,9 @@ setup(name='pykrman',
               [
               ]
       },
-      install_requires=[],
+      install_requires=['pytesseract', 'PyPDF2', 'PIL', 'cronkd', 'PyYAML', 'jsonschema'],
       package_dir={'': 'src'},
       packages=setuptools.find_packages('src'),
       zip_safe=False
       )
+
