@@ -75,5 +75,12 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
                 out.write(pytesseract.image_to_string(Image.open(ofp)))
 
 
+def main():
+    if len(sys.argv) <= 1:
+        raise ValueError('Missing configuration json or yaml file.')
+    else:
+        config_parser(sys.argv[1])
+
+
 if __name__ == '__main__':
-    config_parser(sys.argv[1])
+    main()
