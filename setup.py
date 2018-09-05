@@ -15,9 +15,10 @@ setup(name='pykrman',
       entry_points={
           'console_scripts':
               [
+                  'pykrfy = pykr.pykrfy',
               ]
       },
-      install_requires=['pytesseract', 'PyPDF2', 'PIL', 'cronkd', 'PyYAML', 'jsonschema'],
+      install_requires=['pytesseract', 'PyPDF2', 'pillow', 'pycronkd', 'PyYAML', 'jsonschema'],
       package_dir={'': 'src'},
       packages=setuptools.find_packages('src'),
       zip_safe=False
