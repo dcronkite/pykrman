@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import sys
+from io import BytesIO
 
 import pytesseract
 import yaml
@@ -11,7 +12,7 @@ from PIL import Image
 from jsonschema import validate
 
 from pykrman.schema import SCHEMA
-from pykrman.util import convert_pdf_to_image
+from pykrman.util import convert_pdf_to_image, read_pdf
 
 
 def config_parser(config_fp):
@@ -63,8 +64,16 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
             ext = imghdr.what(ifp) or default_ext
         # cases
         if ext == 'pdf':
-            ofp = os.path.join(workspace, f'{name}.png')
-            ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
+            # try to read text
+            result = read_pdf(ifp)
+            if result:
+                with open(os.path.join(workspace, f'{name}.txt'), 'w', encoding='utf8') as out:
+                    out.write(result)
+                continue
+            else:
+                # does it have embedded image?
+                ofp = os.path.join(workspace, f'{name}.png')
+                ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
         else:
             ofp = os.path.join(workspace, f'{name}.{ext}')
             shutil.copy(ifp, ofp)
@@ -73,6 +82,27 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
         if ofp:
             with open(ofp + '.txt', 'w', encoding='utf8') as out:
                 out.write(pytesseract.image_to_string(Image.open(ofp)))
+
+
+def get_text(fp, ext=None, force_convert=True):
+    """
+
+    :param force_convert: get text at any cost
+    :param ext: extension to use
+    :param fp: file-like object containing image or pdf
+    :return:
+    """
+    if ext == 'pdf':
+        result = read_pdf(fp)
+        if result:
+            return result
+        # does it have embedded image?
+        img = BytesIO()
+        convert_pdf_to_image(fp, img, force=force_convert)
+    else:
+        img = fp
+    # convert image to text
+    return pytesseract.image_to_string(Image.open(img))
 
 
 def main():

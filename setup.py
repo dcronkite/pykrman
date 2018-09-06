@@ -18,7 +18,8 @@ setup(name='pykrman',
                   'pykrfy = pykrman.pykrfy:main',
               ]
       },
-      install_requires=['pytesseract', 'PyPDF2', 'pillow', 'pycronkd', 'PyYAML', 'jsonschema'],
+      install_requires=['pytesseract', 'PyPDF2', 'pillow', 'pycronkd',
+                        'PyYAML', 'jsonschema', 'pdfminer.six', 'pytest', 'requests'],
       package_dir={'': 'src'},
       packages=setuptools.find_packages('src'),
       zip_safe=False
