@@ -56,23 +56,29 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
 
     os.makedirs(workspace, exist_ok=True)
     for ifp in collect_input_files(**data):
-        p, ext = os.path.splitext(ifp)
-        ext = ext[1:]
-        name = os.path.basename(p)
-        if not ext:
-            ext = imghdr.what(ifp) or default_ext
-        # cases
-        if ext == 'pdf':
-            ofp = os.path.join(workspace, f'{name}.png')
-            ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
-        else:
-            ofp = os.path.join(workspace, f'{name}.{ext}')
-            shutil.copy(ifp, ofp)
-            logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
-        # convert to text
-        if ofp:
-            with open(ofp + '.txt', 'w', encoding='utf8') as out:
-                out.write(pytesseract.image_to_string(Image.open(ofp)))
+        read_file(ifp, workspace, default_ext, force_convert)
+
+
+def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
+    p, ext = os.path.splitext(ifp)
+    ext = ext[1:]
+    name = os.path.basename(p)
+    if not ext:
+        ext = imghdr.what(ifp) or default_ext
+    # cases
+    if ext == 'pdf':
+        ofp = os.path.join(workspace, f'{name}.png')
+        ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
+    else:
+        ofp = os.path.join(workspace, f'{name}.{ext}')
+        shutil.copy(ifp, ofp)
+        logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
+    # convert to text
+    if ofp:
+        with open(ofp + '.txt', 'w', encoding='utf8') as out:
+            out.write(pytesseract.image_to_string(Image.open(ofp)))
+        return True
+    return False
 
 
 def main():
