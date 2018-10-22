@@ -3,6 +3,15 @@ import logging
 import os
 import struct
 
+# noinspection PyPackageRequirements
+from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
+# noinspection PyPackageRequirements
+from pdfminer.converter import TextConverter
+# noinspection PyPackageRequirements
+from pdfminer.layout import LAParams
+# noinspection PyPackageRequirements
+from pdfminer.pdfpage import PDFPage
+from io import StringIO
 import PyPDF2
 from PIL import Image
 from cronkd.util.lists import defaultlist
@@ -60,10 +69,10 @@ def get_images_from_scanned_pdf(pdf_filepath):
     :return:
     """
     with open(pdf_filepath, 'rb') as pdf_file:
-        cond_scan_reader = PyPDF2.PdfFileReader(pdf_file)
+        reader = PyPDF2.PdfFileReader(pdf_file)
         images = defaultlist()  # images not read in correct order
-        for i in range(0, cond_scan_reader.getNumPages()):
-            page = cond_scan_reader.getPage(i)
+        for i in range(reader.getNumPages()):
+            page = reader.getPage(i)
             x_object = page['/Resources']['/XObject'].getObject()
             for obj in x_object:
                 if x_object[obj]['/Subtype'] == '/Image':
@@ -85,6 +94,7 @@ def get_images_from_scanned_pdf(pdf_filepath):
                             ccitt_group = 3
                         width = x_object[obj]['/Width']
                         height = x_object[obj]['/Height']
+                        # noinspection PyProtectedMember
                         data = x_object[obj]._data  # sorry, getData() does not work for CCITTFaxDecode
                         img_size = len(data)
                         tiff_header = tiff_header_for_ccitt(width, height, img_size, ccitt_group)
@@ -131,6 +141,7 @@ def force_pdf_to_image(pdf, outfile):
     :return: PythonMagick Image
     """
     try:
+        # noinspection PyPackageRequirements
         from PythonMagick import Image as PMImage
     except ImportError:
         logging.exception('PythonMagick library not detected.')
@@ -146,3 +157,19 @@ def force_pdf_to_image(pdf, outfile):
     img = PMImage(outfile)
     img.write(outfile)
     return True
+
+
+def read_pdf(pdf):
+    rsrcmgr = PDFResourceManager()
+    with open(pdf, 'rb') as fh:
+        result = StringIO()
+        device = TextConverter(rsrcmgr, result,
+                               codec='utf-8', laparams=LAParams())
+        interpreter = PDFPageInterpreter(rsrcmgr, device)
+        for page in PDFPage.get_pages(fh, set(), maxpages=0, password='',
+                                      caching=True, check_extractable=True):
+            interpreter.process_page(page)
+        text = result.getvalue()
+    device.close()
+    result.close()
+    return text
