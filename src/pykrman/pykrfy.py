@@ -62,9 +62,10 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
 
 def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     p, ext = os.path.splitext(ifp)
-    ext = ext[1:]
     name = os.path.basename(p)
-    if not ext:
+    if ext:
+        ext = ext[1:]  # remove leading '.'
+    else:
         ext = imghdr.what(ifp) or default_ext
     # cases
     if ext == 'pdf':
@@ -84,10 +85,35 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
     # convert to text
     if ofp:
-        with open(ofp + '.txt', 'w', encoding='utf8') as out:
-            out.write(pytesseract.image_to_string(Image.open(ofp)))
-        return True
+        try:
+            text = convert_to_text(ofp)
+        except Exception as e:
+            print(ifp, ofp)
+            print(e)
+            return False
+        if text:
+            with open(ofp + '.txt', 'w', encoding='utf8') as out:
+                out.write(text)
+            return True
     return False
+
+
+def convert_to_text(ofp):
+    """
+
+    :param ofp:
+    :return:
+    """
+    im = Image.open(ofp)
+    if hasattr(im, 'n_frames'):
+        res = []
+        for i in range(im.n_frames):  # handle number of frames
+            im.seek(i)
+            text = pytesseract.image_to_string(im)
+            res.append(text)
+        return '\n'.join(res)
+    else:  # jpeg can't have frames
+        return pytesseract.image_to_string(im)
 
 
 def get_text(fp, ext=None, force_convert=True):
