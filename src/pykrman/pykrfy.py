@@ -109,7 +109,11 @@ def convert_to_text(ofp):
         res = []
         for i in range(im.n_frames):  # handle number of frames
             im.seek(i)
-            text = pytesseract.image_to_string(im)
+            try:
+                text = pytesseract.image_to_string(im)
+            except Exception as e:
+                logging.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
+                continue
             res.append(text)
         return '\n'.join(res)
     else:  # jpeg can't have frames
