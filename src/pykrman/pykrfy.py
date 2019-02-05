@@ -4,6 +4,7 @@ import logging
 import os
 import shutil
 import sys
+from collections import Counter
 from io import BytesIO
 
 import pytesseract
@@ -13,6 +14,7 @@ from jsonschema import validate
 
 from pykrman.schema import SCHEMA
 from pykrman.util import convert_pdf_to_image, read_pdf
+from pykrman.names import FileType
 
 
 def config_parser(config_fp):
@@ -56,8 +58,11 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
         raise ValueError('Need to specify input data.')
 
     os.makedirs(workspace, exist_ok=True)
+    c = Counter()
     for ifp in collect_input_files(**data):
-        read_file(ifp, workspace, default_ext, force_convert)
+        ft, success = read_file(ifp, workspace, default_ext, force_convert)
+        if success:
+            c[ft] += 1
 
 
 def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
@@ -74,14 +79,16 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         if result:
             with open(os.path.join(workspace, f'{name}.txt'), 'w', encoding='utf8') as out:
                 out.write(result)
-            return
+            return FileType.TEXT_PDF, True
         else:
             # does it have embedded image?
             ofp = os.path.join(workspace, f'{name}.png')
             ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
+            ft = FileType.SCANNED_PDF
     else:
         ofp = os.path.join(workspace, f'{name}.{ext}')
         shutil.copy(ifp, ofp)
+        ft = FileType.IMAGE
         logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
     # convert to text
     if ofp:
@@ -90,12 +97,12 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         except Exception as e:
             print(ifp, ofp)
             print(e)
-            return False
+            return ft, False
         if text:
             with open(ofp + '.txt', 'w', encoding='utf8') as out:
                 out.write(text)
-            return True
-    return False
+            return ft, True
+    return ft, False
 
 
 def convert_to_text(ofp):
@@ -104,7 +111,7 @@ def convert_to_text(ofp):
     :param ofp:
     :return:
     """
-    im = Image.open(ofp)
+    im = Image.open(ofp).convert('RGBA')
     if hasattr(im, 'n_frames'):
         res = []
         for i in range(im.n_frames):  # handle number of frames
@@ -138,7 +145,7 @@ def get_text(fp, ext=None, force_convert=True):
     else:
         img = fp
     # convert image to text
-    return pytesseract.image_to_string(Image.open(img))
+    return pytesseract.image_to_string(Image.open(img).convert('RGBA'))
 
 
 def main():
