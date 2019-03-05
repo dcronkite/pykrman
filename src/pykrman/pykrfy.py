@@ -9,7 +9,7 @@ from io import BytesIO
 
 import pytesseract
 import yaml
-from PIL import Image
+from PIL import Image, ImageFilter, ImageEnhance
 from jsonschema import validate
 
 from pykrman.schema import SCHEMA
@@ -112,13 +112,18 @@ def convert_to_text(ofp):
     :param ofp:
     :return:
     """
-    im = Image.open(ofp).convert('RGBA')
+    im = Image.open(ofp)
     if hasattr(im, 'n_frames'):
         res = []
         for i in range(im.n_frames):  # handle number of frames
             im.seek(i)
+            cim = im.convert('RGBA')
+            cim = cim.filter(ImageFilter.MedianFilter())
+            enhancer = ImageEnhance.Contrast(cim)
+            cim = enhancer.enhance(2)
+            cim = cim.convert('1')
             try:
-                text = pytesseract.image_to_string(im)
+                text = pytesseract.image_to_string(cim)
             except Exception as e:
                 logging.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
                 continue
