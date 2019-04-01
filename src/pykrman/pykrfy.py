@@ -67,6 +67,8 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
 
 
 def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
+    img_dir = os.path.join(workspace, 'out')
+    txt_dir = os.path.join(workspace, 'text')
     p, ext = os.path.splitext(ifp)
     name = os.path.basename(p)
     if ext:
@@ -78,16 +80,16 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         # try to read text
         result = read_pdf(ifp)
         if result:
-            with open(os.path.join(workspace, f'{name}.txt'), 'w', encoding='utf8') as out:
+            with open(os.path.join(txt_dir, f'{name}.txt'), 'w', encoding='utf8') as out:
                 out.write(result)
             return FileType.TEXT_PDF, True
         else:
             # does it have embedded image?
-            ofp = os.path.join(workspace, f'{name}.png')
+            ofp = os.path.join(img_dir, f'{name}.png')
             ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
             ft = FileType.SCANNED_PDF
     else:
-        ofp = os.path.join(workspace, f'{name}.{ext}')
+        ofp = os.path.join(img_dir, f'{name}.{ext}')
         shutil.copy(ifp, ofp)
         ft = FileType.IMAGE
         logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
