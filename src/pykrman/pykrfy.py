@@ -1,6 +1,5 @@
 import imghdr
 import json
-import logging
 import os
 import shutil
 import sys
@@ -9,12 +8,16 @@ from io import BytesIO
 
 import pytesseract
 import yaml
-from PIL import Image
+from PIL import Image, ImageFilter, ImageEnhance
 from jsonschema import validate
+from loguru import logger
 
 from pykrman.schema import SCHEMA
 from pykrman.util import convert_pdf_to_image, read_pdf
 from pykrman.names import FileType
+
+
+logger.add("output.log", backtrace=True, diagnose=True)
 
 
 def config_parser(config_fp):
@@ -67,6 +70,8 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
 
 
 def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
+    img_dir = os.path.join(workspace, 'out')
+    txt_dir = os.path.join(workspace, 'text')
     p, ext = os.path.splitext(ifp)
     name = os.path.basename(p)
     if ext:
@@ -78,16 +83,16 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         # try to read text
         result = read_pdf(ifp)
         if result:
-            with open(os.path.join(workspace, f'{name}.txt'), 'w', encoding='utf8') as out:
+            with open(os.path.join(txt_dir, f'{name}.txt'), 'w', encoding='utf8') as out:
                 out.write(result)
             return FileType.TEXT_PDF, True
         else:
             # does it have embedded image?
-            ofp = os.path.join(workspace, f'{name}.png')
+            ofp = os.path.join(img_dir, f'{name}.png')
             ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
             ft = FileType.SCANNED_PDF
     else:
-        ofp = os.path.join(workspace, f'{name}.{ext}')
+        ofp = os.path.join(img_dir, f'{name}.{ext}')
         shutil.copy(ifp, ofp)
         ft = FileType.IMAGE
         logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
@@ -106,26 +111,55 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     return ft, False
 
 
-def convert_to_text(ofp):
+def image_to_string(im):
+    exc = None
+    try:
+        return pytesseract.image_to_string(im)
+    except Exception as ex:
+        logger.exception('pytesseract failed to parse file')
+        print(ex)
+        exc = ex
+    return f'Pytesseract Failed to Parse: {exc}'
+
+
+def convert_to_text(ofp, ext=None, force_convert=True):
     """
 
     :param ofp:
     :return:
     """
-    im = Image.open(ofp).convert('RGBA')
+    if ext == 'pdf' or ofp.endswith('.pdf'):
+        result = read_pdf(ofp)
+        if result and result.strip():  # one pdf just had "\f\f\f\f\f\f\f"?!?
+            return result
+        # embedded image?
+        im = BytesIO()
+        im = convert_pdf_to_image(ofp, im, force=force_convert)
+        # im = Image.open(im)
+    else:
+        try:
+            im = Image.open(ofp)
+        except Exception as ex:
+            logger.exception('PIL failed to open image')
+            return str(ex)
     if hasattr(im, 'n_frames'):
         res = []
         for i in range(im.n_frames):  # handle number of frames
             im.seek(i)
+            cim = im.convert('RGBA')
+            cim = cim.filter(ImageFilter.MedianFilter())
+            enhancer = ImageEnhance.Contrast(cim)
+            cim = enhancer.enhance(2)
+            cim = cim.convert('1')
             try:
-                text = pytesseract.image_to_string(im)
+                text = image_to_string(cim)
             except Exception as e:
-                logging.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
+                logger.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
                 continue
             res.append(text)
         return '\n'.join(res)
     else:  # jpeg can't have frames
-        return pytesseract.image_to_string(im)
+        return image_to_string(im)
 
 
 def get_text(fp, ext=None, force_convert=True):

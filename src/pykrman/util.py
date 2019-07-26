@@ -2,6 +2,7 @@ import io
 import logging
 import os
 import struct
+import zlib
 
 # noinspection PyPackageRequirements
 from pdfminer.pdfinterp import PDFResourceManager, PDFPageInterpreter
@@ -21,7 +22,7 @@ def convert_pdf_to_image(ifp, ofp, force=True):
     """
 
     :param ifp:
-    :param ofp:
+    :param ofp: might be BytesIO
     :param force: ensure that some image is obtained
     :return:
     """
@@ -30,12 +31,17 @@ def convert_pdf_to_image(ifp, ofp, force=True):
     except PyPDF2.utils.PdfReadError:
         images = None
     if images:
-        merge_images(images, out=ofp)
+        res = merge_images(images, out=ofp)
+        if isinstance(ofp, io.BytesIO):
+            ofp = res
     else:
         logging.warning(f'Failed to parse scanned pdf: "{ifp}"')
         if force:
             logging.warning(f'Forcing conversion of scanned pdf.')
-            ofp = os.path.splitext(ofp)[0] + '.force' + os.path.splitext(ofp)[-1]
+            try:
+                ofp = os.path.splitext(ofp)[0] + '.force' + os.path.splitext(ofp)[-1]
+            except TypeError:
+                pass
             if not force_pdf_to_image(ifp, ofp):
                 return None
     return ofp
@@ -71,10 +77,12 @@ def get_images_from_scanned_pdf(pdf_filepath):
     with open(pdf_filepath, 'rb') as pdf_file:
         reader = PyPDF2.PdfFileReader(pdf_file)
         images = defaultlist()  # images not read in correct order
+        images2 = list()
         for i in range(reader.getNumPages()):
             page = reader.getPage(i)
             x_object = page['/Resources']['/XObject'].getObject()
             for obj in x_object:
+                img = None
                 if x_object[obj]['/Subtype'] == '/Image':
                     """
                     The  CCITTFaxDecode filter decodes image data that has been encoded using
@@ -87,25 +95,45 @@ def get_images_from_scanned_pdf(pdf_filepath):
                     K = 0 --- Pure one-dimensional encoding (Group 3, 1-D)
                     K > 0 --- Mixed one- and two-dimensional encoding (Group 3, 2-D)
                     """
-                    if x_object[obj]['/Filter'] == '/CCITTFaxDecode':
+                    x_filter = x_object[obj]['/Filter']
+                    # noinspection PyProtectedMember
+                    data = x_object[obj]._data  # sorry, getData() does not work for CCITTFaxDecode
+                    ext = ''
+                    if isinstance(x_filter, list):
+                        if x_filter[0] == '/FlateDecode':
+                            data = zlib.decompress(data)
+                        x_filter = x_filter[1]
+                    if x_filter == '/CCITTFaxDecode':
                         if x_object[obj]['/DecodeParms']['/K'] == -1:
                             ccitt_group = 4
                         else:
                             ccitt_group = 3
                         width = x_object[obj]['/Width']
                         height = x_object[obj]['/Height']
-                        # noinspection PyProtectedMember
-                        data = x_object[obj]._data  # sorry, getData() does not work for CCITTFaxDecode
                         img_size = len(data)
                         tiff_header = tiff_header_for_ccitt(width, height, img_size, ccitt_group)
-                        images[int(obj[3:])] = Image.open(io.BytesIO(tiff_header + data))
-                    elif x_object[obj]['/Filter'] == '/DCTDecode':
-                        data = x_object[obj]._data  # jpg
-                        images[int(obj[3:])] = Image.open(io.BytesIO(data))
-                    elif x_object[obj]['/Filter'] == '/JPXDecode':
-                        data = x_object[obj]._data  # jp2
-                        images[int(obj[3:])] = Image.open(io.BytesIO(data))
-    return images
+                        img = Image.open(io.BytesIO(tiff_header + data))
+                        ext = 'tiff'
+                    elif x_filter == '/DCTDecode':  # jpg
+                        img = Image.open(io.BytesIO(data))
+                        ext = 'jpg'
+                    elif x_filter == '/JPXDecode':  # jp2
+                        img = Image.open(io.BytesIO(data))
+                        ext = 'jp2'
+                    elif x_filter == '/FlateDecode':  # png
+                        img = Image.open(io.BytesIO(data))
+                        ext = 'png'
+                    elif x_filter == '/JBIG2Decode':  # jbig2
+                        ext = 'jbig2'
+                        # images[key] = Image.open(io.BytesIO(data))
+                    with open(f'{i}_{obj[1:]}.{ext}', 'wb') as out:
+                        out.write(data)
+                    if img:
+                        try:
+                            images[int(obj[3:])] = img
+                        except:
+                            images2.append(img)
+    return images if images else images2
 
 
 def merge_images(images, horizontal=False, out=None):
@@ -126,7 +154,7 @@ def merge_images(images, horizontal=False, out=None):
         else:
             result.paste(im=im, box=(0, prev))
             prev += im.size[1]  # add height
-    if out:
+    if out and isinstance(out, str):
         result.save(out)
     return result
 
@@ -154,9 +182,11 @@ def force_pdf_to_image(pdf, outfile):
         logging.warning('Unable to convert pdf to image: {}'.format(pdf))
         return None
 
-    img = PMImage(outfile)
-    img.write(outfile)
-    return True
+    img = PMImage(pdf)
+    img.write(f'{pdf}.tiff')
+    with open(f'{pdf}.tiff', 'rb') as fh:
+        outfile.write(fh.read())
+    return outfile
 
 
 def read_pdf(pdf):
