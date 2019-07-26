@@ -1,6 +1,5 @@
 import imghdr
 import json
-import logging
 import os
 import shutil
 import sys
@@ -11,10 +10,14 @@ import pytesseract
 import yaml
 from PIL import Image, ImageFilter, ImageEnhance
 from jsonschema import validate
+from loguru import logger
 
 from pykrman.schema import SCHEMA
 from pykrman.util import convert_pdf_to_image, read_pdf
 from pykrman.names import FileType
+
+
+logger.add("output.log", backtrace=True, diagnose=True)
 
 
 def config_parser(config_fp):
@@ -108,13 +111,37 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     return ft, False
 
 
-def convert_to_text(ofp):
+def image_to_string(im):
+    exc = None
+    try:
+        return pytesseract.image_to_string(im)
+    except Exception as ex:
+        logger.exception('pytesseract failed to parse file')
+        print(ex)
+        exc = ex
+    return f'Pytesseract Failed to Parse: {exc}'
+
+
+def convert_to_text(ofp, ext=None, force_convert=True):
     """
 
     :param ofp:
     :return:
     """
-    im = Image.open(ofp)
+    if ext == 'pdf' or ofp.endswith('.pdf'):
+        result = read_pdf(ofp)
+        if result and result.strip():  # one pdf just had "\f\f\f\f\f\f\f"?!?
+            return result
+        # embedded image?
+        im = BytesIO()
+        im = convert_pdf_to_image(ofp, im, force=force_convert)
+        # im = Image.open(im)
+    else:
+        try:
+            im = Image.open(ofp)
+        except Exception as ex:
+            logger.exception('PIL failed to open image')
+            return str(ex)
     if hasattr(im, 'n_frames'):
         res = []
         for i in range(im.n_frames):  # handle number of frames
@@ -125,14 +152,14 @@ def convert_to_text(ofp):
             cim = enhancer.enhance(2)
             cim = cim.convert('1')
             try:
-                text = pytesseract.image_to_string(cim)
+                text = image_to_string(cim)
             except Exception as e:
-                logging.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
+                logger.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
                 continue
             res.append(text)
         return '\n'.join(res)
     else:  # jpeg can't have frames
-        return pytesseract.image_to_string(im)
+        return image_to_string(im)
 
 
 def get_text(fp, ext=None, force_convert=True):
