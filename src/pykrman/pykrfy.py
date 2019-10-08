@@ -61,7 +61,7 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
         raise ValueError('Need to specify input data.')
 
     os.makedirs(workspace, exist_ok=True)
-    logging.basicConfig(filename='log.txt')
+    logger.basicConfig(filename='log.txt')
     c = Counter()
     for ifp in collect_input_files(**data):
         ft, success = read_file(ifp, workspace, default_ext, force_convert)
@@ -95,14 +95,14 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
         ofp = os.path.join(img_dir, f'{name}.{ext}')
         shutil.copy(ifp, ofp)
         ft = FileType.IMAGE
-        logging.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
+        logger.info(f'Doing nothing to: "{ifp}" with extension "{ext}"')
     # convert to text
     if ofp:
         try:
             text = convert_to_text(ofp)
         except Exception as e:
-            logging.error(f'Failed to extract text: {ifp}, {ofp}')
-            logging.exception(e)
+            logger.error(f'Failed to extract text: {ifp}, {ofp}')
+            logger.exception(e)
             return ft, False
         if text:
             with open(ofp + '.txt', 'w', encoding='utf8') as out:
