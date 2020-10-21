@@ -1,5 +1,5 @@
 import io
-import logging
+from loguru import logger
 import os
 import struct
 import zlib
@@ -28,16 +28,18 @@ def convert_pdf_to_image(ifp, ofp, force=True):
     """
     try:
         images = get_images_from_scanned_pdf(ifp)
-    except PyPDF2.utils.PdfReadError:
+    except PyPDF2.utils.PdfReadError as e:
+        logger.info('Unable to get images from scanned pdf')
+        logger.exception(e)
         images = None
     if images:
         res = merge_images(images, out=ofp)
         if isinstance(ofp, io.BytesIO):
             ofp = res
     else:
-        logging.warning(f'Failed to parse scanned pdf: "{ifp}"')
+        logger.warning(f'Failed to parse scanned pdf: "{ifp}"')
         if force:
-            logging.warning(f'Forcing conversion of scanned pdf.')
+            logger.warning(f'Forcing conversion of scanned pdf.')
             try:
                 ofp = os.path.splitext(ofp)[0] + '.force' + os.path.splitext(ofp)[-1]
             except TypeError:
@@ -121,7 +123,11 @@ def get_images_from_scanned_pdf(pdf_filepath):
                         img = Image.open(io.BytesIO(data))
                         ext = 'jp2'
                     elif x_filter == '/FlateDecode':  # png
-                        img = Image.open(io.BytesIO(data))
+                        try:
+                            img = Image.open(io.BytesIO(data))
+                        except Exception as e:
+                            logger.warning('Failed to read /FlateDecode', e)
+                            continue
                         ext = 'png'
                     elif x_filter == '/JBIG2Decode':  # jbig2
                         ext = 'jbig2'
@@ -130,7 +136,7 @@ def get_images_from_scanned_pdf(pdf_filepath):
                         out.write(data)
                     if img:
                         try:
-                            images[int(obj[3:])] = img
+                            images[i * 1000 + int(obj[3:])] = img
                         except:
                             images2.append(img)
     return images if images else images2
@@ -168,24 +174,26 @@ def force_pdf_to_image(pdf, outfile):
     :param pdf: path to pdf file
     :return: PythonMagick Image
     """
+    logger.info('Using ImageMagick')
     try:
         # noinspection PyPackageRequirements
         from PythonMagick import Image as PMImage
     except ImportError:
-        logging.exception('PythonMagick library not detected.')
-        logging.warning('Unable to convert pdf to image: {}'.format(pdf))
+        logger.exception('PythonMagick library not detected.')
+        logger.warning('Unable to convert pdf to image: {}'.format(pdf))
         return None
 
     if 'MAGICK_HOME' not in os.environ:
-        logging.exception('PythonMagick environment variable not set.')
-        logging.warning('Set MAGICK_HOME to something like "C:\Program Files\ImageMagick-x.y.z-w."')
-        logging.warning('Unable to convert pdf to image: {}'.format(pdf))
+        logger.exception('PythonMagick environment variable not set.')
+        logger.warning(r'Set MAGICK_HOME to something like "C:\Program Files\ImageMagick-x.y.z-w."')
+        logger.warning('Unable to convert pdf to image: {}'.format(pdf))
         return None
 
     img = PMImage(pdf)
     img.write(f'{pdf}.tiff')
-    with open(f'{pdf}.tiff', 'rb') as fh:
-        outfile.write(fh.read())
+    with open(outfile, 'wb') as out:
+        with open(f'{pdf}.tiff', 'rb') as fh:
+            out.write(fh.read())
     return outfile
 
 

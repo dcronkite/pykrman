@@ -82,14 +82,19 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     if ext == 'pdf':
         # try to read text
         result = read_pdf(ifp)
-        if result:
+        if result and len(result) > 20:
             with open(os.path.join(txt_dir, f'{name}.txt'), 'w', encoding='utf8') as out:
                 out.write(result)
             return FileType.TEXT_PDF, True
         else:
             # does it have embedded image?
             ofp = os.path.join(img_dir, f'{name}.png')
-            ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
+            try:
+                ofp = convert_pdf_to_image(ifp, ofp, force=force_convert)
+            except Exception as e:
+                logger.info(f'Failed to convert: {name}')
+                logger.exception(e)
+                return FileType.SCANNED_PDF, False
             ft = FileType.SCANNED_PDF
     else:
         ofp = os.path.join(img_dir, f'{name}.{ext}')
@@ -159,7 +164,12 @@ def convert_to_text(ofp, ext=None, force_convert=True):
             res.append(text)
         return '\n'.join(res)
     else:  # jpeg can't have frames
-        return image_to_string(im)
+        cim = im.convert('RGBA')
+        cim = cim.filter(ImageFilter.MedianFilter())
+        enhancer = ImageEnhance.Contrast(cim)
+        cim = enhancer.enhance(2)
+        cim = cim.convert('1')
+        return image_to_string(cim)
 
 
 def get_text(fp, ext=None, force_convert=True):
