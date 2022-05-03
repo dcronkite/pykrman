@@ -1,7 +1,7 @@
-Python Intelligent Character Recognition Manager
+# Python Intelligent Character Recognition Manager
 
-# About #
+## About
 Manage ICR/OCR on a variety of inputs, primarily tiff and scanned pdfs.
 
-# License #
+## License
 MIT: https://dcronkite.mit-license.org/
