@@ -15,7 +15,7 @@ from pdfminer.pdfpage import PDFPage
 from io import StringIO
 import PyPDF2
 from PIL import Image
-from cronkd.util.lists import defaultlist
+from defaultlist import defaultlist
 
 
 def convert_pdf_to_image(ifp, ofp, force=True):
@@ -189,7 +189,15 @@ def force_pdf_to_image(pdf, outfile):
         logger.warning('Unable to convert pdf to image: {}'.format(pdf))
         return None
 
-    img = PMImage(pdf)
+    # if not pdf.endswith('pdf'):
+    #     new_pdf = f'{pdf}.im.pdf'  # imagemagick requires extension
+    #     shutil.copy(pdf, new_pdf)
+    #     pdf = new_pdf
+    try:
+        img = PMImage(pdf)
+    except Exception as e:
+        logger.warning('Not a file that ImageMagick can work with.')
+        return None
     img.write(f'{pdf}.tiff')
     with open(outfile, 'wb') as out:
         with open(f'{pdf}.tiff', 'rb') as fh:
@@ -201,8 +209,7 @@ def read_pdf(pdf):
     rsrcmgr = PDFResourceManager()
     with open(pdf, 'rb') as fh:
         result = StringIO()
-        device = TextConverter(rsrcmgr, result,
-                               codec='utf-8', laparams=LAParams())
+        device = TextConverter(rsrcmgr, result, laparams=LAParams())
         interpreter = PDFPageInterpreter(rsrcmgr, device)
         for page in PDFPage.get_pages(fh, set(), maxpages=0, password='',
                                       caching=True, check_extractable=True):

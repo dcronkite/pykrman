@@ -81,7 +81,11 @@ def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     # cases
     if ext == 'pdf':
         # try to read text
-        result = read_pdf(ifp)
+        try:
+            result = read_pdf(ifp)
+        except Exception as e:
+            logger.warning(f'Not a pdf: {ifp}, {e}')
+            result = None
         if result and len(result) > 20:
             with open(os.path.join(txt_dir, f'{name}.txt'), 'w', encoding='utf8') as out:
                 out.write(result)
