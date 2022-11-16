@@ -15,7 +15,7 @@ from pdfminer.pdfpage import PDFPage
 from io import StringIO
 import PyPDF2
 from PIL import Image
-from defaultlist import defaultlist
+from pykrman.defaultlist import defaultlist
 
 
 def convert_pdf_to_image(ifp, ofp, force=True):
