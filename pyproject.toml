@@ -12,7 +12,7 @@ authors = [
 readme = 'README.md'
 description = 'Python Intelligent Character Recognition Manager for extracting text from various images/pdfs, running Tesseract as appropriate.'
 home-page = 'https://github.com/dcronkite/pykrman'
-requires = [
+dependencies = [
     'pytesseract',
     'PyPDF2',
     'pillow',
