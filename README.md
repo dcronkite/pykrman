@@ -17,7 +17,7 @@ Manage ICR/OCR on a variety of inputs, primarily tiff and scanned pdfs.
 
 There are two methods to run:
 1. From a separate Python script:
-2. 
+
 ```python
 from pathlib import Path
 from pykrman.pykrfy import get_text
@@ -26,7 +26,7 @@ path = Path(r'/path/to')
 text = get_text(path)
 ```
 2. From command line:
-    * Create a config
+    * Create a config:
    
 ```yaml
 data:
@@ -34,8 +34,7 @@ data:
     * /path/to
 workspace: /path/to/workspace
 ```
-
-    * Run `pykrfy config.yaml`
+* Run `pykrfy config.yaml`
 
 ## License
 MIT: https://dcronkite.mit-license.org/
