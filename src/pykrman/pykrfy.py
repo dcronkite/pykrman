@@ -16,7 +16,6 @@ from pykrman.schema import SCHEMA
 from pykrman.util import convert_pdf_to_image, read_pdf
 from pykrman.names import FileType
 
-
 logger.add("output.log", backtrace=True, diagnose=True)
 
 
@@ -72,12 +71,15 @@ def run_config(data=None, workspace='.', default_ext='pdf', force_convert=True):
 def read_file(ifp, workspace='.', default_ext='pdf', force_convert=True):
     img_dir = os.path.join(workspace, 'out')
     txt_dir = os.path.join(workspace, 'text')
+    os.makedirs(txt_dir, exist_ok=True)
     p, ext = os.path.splitext(ifp)
     name = os.path.basename(p)
     if ext:
         ext = ext[1:]  # remove leading '.'
     else:
         ext = imghdr.what(ifp) or default_ext
+    ofp = os.path.join(img_dir, f'{name}.{ext}')
+    shutil.copy(ifp, ofp)
     # cases
     if ext == 'pdf':
         # try to read text
