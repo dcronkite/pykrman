@@ -16,8 +16,6 @@ from pykrman.schema import SCHEMA
 from pykrman.util import convert_pdf_to_image, read_pdf
 from pykrman.names import FileType
 
-logger.add("output.log", backtrace=True, diagnose=True)
-
 
 def config_parser(config_fp):
     with open(config_fp) as fh:
