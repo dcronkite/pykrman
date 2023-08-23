@@ -5,8 +5,10 @@ import shutil
 import sys
 from collections import Counter
 from io import BytesIO
+from pathlib import Path
 
 import pytesseract
+from pytesseract.pytesseract import TesseractNotFoundError
 import yaml
 from PIL import Image, ImageFilter, ImageEnhance
 from jsonschema import validate
@@ -124,6 +126,9 @@ def image_to_string(im):
     exc = None
     try:
         return pytesseract.image_to_string(im)
+    except TesseractNotFoundError as e:
+        logger.error(f'Tesseract not installed. Please install.')
+        raise e
     except Exception as ex:
         logger.exception('pytesseract failed to parse file')
         print(ex)
@@ -131,13 +136,17 @@ def image_to_string(im):
     return f'Pytesseract Failed to Parse: {exc}'
 
 
-def convert_to_text(ofp, ext=None, force_convert=True):
+def convert_to_text(ofp: Path, ext=None, force_convert=True):
     """
 
     :param ofp:
     :return:
     """
-    if ext == 'pdf' or ofp.endswith('.pdf'):
+    if isinstance(ofp, str):
+        ofp = Path(ofp)
+    if not ext:
+        ext = ofp.suffix.strip('.')
+    if ext == 'pdf' or ofp.suffix == '.pdf':
         result = read_pdf(ofp)
         if result and result.strip():  # one pdf just had "\f\f\f\f\f\f\f"?!?
             return result
@@ -166,14 +175,20 @@ def convert_to_text(ofp, ext=None, force_convert=True):
                 logger.error(f'frame{i}@{ofp}:{imghdr.what(ofp)}:{type(im)}', exc_info=True)
                 continue
             res.append(text)
-        return '\n'.join(res)
+        text = '\n'.join(res)
     else:  # jpeg can't have frames
         cim = im.convert('RGBA')
         cim = cim.filter(ImageFilter.MedianFilter())
         enhancer = ImageEnhance.Contrast(cim)
         cim = enhancer.enhance(2)
         cim = cim.convert('1')
-        return image_to_string(cim)
+        text = image_to_string(cim)
+    try:
+        im.close()
+        cim.close()
+    except Exception as e:
+        print(e)
+    return text
 
 
 def get_text(fp, ext=None, force_convert=True):
